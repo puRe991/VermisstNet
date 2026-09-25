@@ -1,0 +1,561 @@
+// VermisstAtlas – Datenmodell
+// Dokumentation: docs/DATABASE.md
+//
+// Konventionen:
+// - Tabellen/Spalten in snake_case (@@map/@map), Prisma-Modelle in PascalCase.
+// - Alle Felder, die NICHT öffentlich sein dürfen, sind mit "INTERNAL" kommentiert.
+//   Öffentliche Ausgaben laufen ausschließlich über src/server/dto/public.ts (Allowlist).
+// - Geodaten: lat/lng werden von Prisma geschrieben, die PostGIS-Spalte `geom`
+//   ist eine GENERATED-Spalte (siehe Migration) mit GiST-Index.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+// ─────────────────────────────── Benutzer & Sessions ───────────────────────────────
+
+enum Role {
+  VISITOR
+  REPORTER
+  MODERATOR
+  EDITOR
+  ADMINISTRATOR
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  displayName  String    @map("display_name")
+  passwordHash String    @map("password_hash") // INTERNAL – argon2id
+  role         Role      @default(REPORTER)
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  sessions            Session[]
+  auditLogs           AuditLog[]
+  reviewEvents        ReviewEvent[]
+  createdCases        Case[]           @relation("CaseCreatedBy")
+  submissions         CaseSubmission[] @relation("SubmissionReporter")
+  assignedSubmissions CaseSubmission[] @relation("SubmissionAssignee")
+  hints               Hint[]           @relation("HintReporter")
+  assignedHints       Hint[]           @relation("HintAssignee")
+  verifiedSources     Source[]         @relation("SourceVerifiedBy")
+  createdSources      Source[]         @relation("SourceCreatedBy")
+  timelineEvents      TimelineEvent[]
+  uploadedMedia       Media[]
+
+  @@map("users")
+}
+
+model Session {
+  id         String   @id @default(uuid()) @db.Uuid
+  // SHA-256 des zufälligen Session-Tokens. Das Klartext-Token existiert nur im Cookie.
+  tokenHash  String   @unique @map("token_hash")
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+  userAgent  String?  @map("user_agent") @db.VarChar(255)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// ─────────────────────────────────── Personen ───────────────────────────────────
+
+enum Gender {
+  FEMALE
+  MALE
+  DIVERSE
+  UNKNOWN
+}
+
+/// Wie viel vom Namen öffentlich angezeigt werden darf.
+enum PrivacyLevel {
+  FULL_NAME // "Erika Mustermann"
+  FIRST_NAME_INITIAL // "Erika M."
+  ANONYMIZED // kein Name, nur "17-jährige Person"
+}
+
+model Person {
+  id                     String       @id @default(uuid()) @db.Uuid
+  firstName              String       @map("first_name")
+  lastName               String?      @map("last_name")
+  birthDate              DateTime?    @map("birth_date") @db.Date // INTERNAL – öffentlich nur das Alter
+  ageAtMissing           Int?         @map("age_at_missing") // falls Geburtsdatum unbekannt
+  gender                 Gender       @default(UNKNOWN)
+  heightCm               Int?         @map("height_cm")
+  build                  String?      // Statur
+  hairColor              String?      @map("hair_color")
+  eyeColor               String?      @map("eye_color")
+  distinguishingFeatures String?      @map("distinguishing_features")
+  description            String?
+  privacyLevel           PrivacyLevel @default(FIRST_NAME_INITIAL) @map("privacy_level")
+  createdAt              DateTime     @default(now()) @map("created_at")
+  updatedAt              DateTime     @updatedAt @map("updated_at")
+
+  cases Case[]
+
+  @@map("persons")
+}
+
+// ───────────────────────────────────── Fälle ─────────────────────────────────────
+
+enum CaseStatus {
+  ACTIVE
+  FOUND
+  CLOSED
+  ARCHIVED
+}
+
+enum PublicationStatus {
+  DRAFT // nur intern sichtbar
+  PUBLISHED // öffentlich
+  UNPUBLISHED // zurückgezogen, nur intern sichtbar
+}
+
+model Case {
+  id                  String            @id @default(uuid()) @db.Uuid
+  publicNumber        String            @unique @map("public_number") // z. B. VA-2026-000123
+  personId            String            @map("person_id") @db.Uuid
+  person              Person            @relation(fields: [personId], references: [id], onDelete: Restrict)
+  status              CaseStatus        @default(ACTIVE)
+  publicationStatus   PublicationStatus @default(DRAFT) @map("publication_status")
+  isUrgent            Boolean           @default(false) @map("is_urgent") // nur editor/admin
+  missingSince        DateTime          @map("missing_since")
+  missingPlace        String            @map("missing_place") // Vermisstenort (Ort/Stadtteil, keine Adresse)
+  lastKnownPlace      String?           @map("last_known_place") // letzter bestätigter Aufenthaltsort
+  city                String?
+  federalState        String?           @map("federal_state") // Bundesland (ISO 3166-2:DE, z. B. DE-NW)
+  circumstances       String?           // Beschreibung der Umstände (öffentlich)
+  clothing            String?           // Bekleidung zum Zeitpunkt des Verschwindens
+  responsibleAuthority String?          @map("responsible_authority") // zuständige Stelle
+  authorityContact    String?           @map("authority_contact") // öffentl. Kontakt der Stelle (Telefon/URL)
+  internalReference   String?           @map("internal_reference") // INTERNAL
+  internalNotes       String?           @map("internal_notes") // INTERNAL
+  isDemo              Boolean           @default(false) @map("is_demo") // "DEMO DATA"
+  createdById         String?           @map("created_by_id") @db.Uuid
+  createdBy           User?             @relation("CaseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  publishedAt         DateTime?         @map("published_at")
+  closedAt            DateTime?         @map("closed_at")
+  // Volltext-Index; wird ausschließlich aus ÖFFENTLICHEN Feldern befüllt
+  // (SQL-Funktion refresh_case_search, siehe Migration).
+  searchVector        Unsupported("tsvector")? @map("search_vector")
+
+  locations      Location[]
+  sources        Source[]
+  media          Media[]
+  timelineEvents TimelineEvent[]
+  hints          Hint[]
+  submission     CaseSubmission?
+  reports        ContentReport[]
+
+  @@index([publicationStatus, status, missingSince])
+  @@index([federalState])
+  @@index([city])
+  @@index([personId])
+  @@index([searchVector], map: "cases_search_vector_gin", type: Gin)
+  @@map("cases")
+}
+
+// ─────────────────────────────────── Geodaten ───────────────────────────────────
+
+enum LocationType {
+  MISSING_LOCATION
+  LAST_KNOWN_LOCATION
+  SIGHTING
+  POSSIBLE_LOCATION
+  TRAVEL_POINT
+}
+
+enum Visibility {
+  PUBLIC
+  INTERNAL
+}
+
+model Location {
+  id           String       @id @default(uuid()) @db.Uuid
+  caseId       String       @map("case_id") @db.Uuid
+  case         Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  type         LocationType
+  label        String       // "Hagen, Innenstadt" – keine Hausnummern
+  city         String?
+  federalState String?      @map("federal_state")
+  latitude     Float
+  longitude    Float
+  // Genauigkeit der gespeicherten Koordinate in Metern (Ortsebene, nicht Adresse)
+  precisionM   Int          @default(1000) @map("precision_m")
+  observedAt   DateTime?    @map("observed_at")
+  visibility   Visibility   @default(INTERNAL)
+  isConfirmed  Boolean      @default(false) @map("is_confirmed")
+  sourceId     String?      @map("source_id") @db.Uuid
+  source       Source?      @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  // PostGIS: GENERATED ALWAYS AS (ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography)
+  geom         Unsupported("geography(Point, 4326)")? @default(dbgenerated("(st_setsrid(st_makepoint(longitude, latitude), 4326))::geography"))
+
+  timelineEvents TimelineEvent[]
+
+  @@index([caseId, type])
+  @@index([geom], map: "locations_geom_gist", type: Gist)
+  @@map("locations")
+}
+
+// ─────────────────────────────────── Quellen ───────────────────────────────────
+
+enum SourceType {
+  OFFICIAL_AUTHORITY
+  POLICE
+  ORGANIZATION
+  FAMILY
+  MEDIA
+  USER_REPORT
+  OTHER
+}
+
+model Source {
+  id              String     @id @default(uuid()) @db.Uuid
+  caseId          String     @map("case_id") @db.Uuid
+  case            Case       @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  sourceType      SourceType @map("source_type")
+  organization    String?
+  title           String
+  url             String?
+  publicationDate DateTime?  @map("publication_date")
+  verifiedAt      DateTime?  @map("verified_at")
+  verifiedById    String?    @map("verified_by_id") @db.Uuid
+  verifiedBy      User?      @relation("SourceVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+  notes           String?    // INTERNAL
+  createdById     String?    @map("created_by_id") @db.Uuid
+  createdBy       User?      @relation("SourceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  locations      Location[]
+  timelineEvents TimelineEvent[]
+  media          Media[]
+
+  @@index([caseId])
+  @@index([verifiedAt])
+  @@map("sources")
+}
+
+// ─────────────────────────────────── Medien ───────────────────────────────────
+
+enum MediaType {
+  SEARCH_IMAGE // Suchbild
+  PHOTO
+  VIDEO
+}
+
+enum CopyrightStatus {
+  OFFICIAL_RELEASE // behördliche Freigabe (Fahndungsbild)
+  PERMISSION_GRANTED // Einverständnis der Rechteinhaber
+  LICENSED // freie Lizenz
+  UNKNOWN // ungeklärt → darf nicht veröffentlicht werden
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Media {
+  id              String          @id @default(uuid()) @db.Uuid
+  caseId          String?         @map("case_id") @db.Uuid
+  case            Case?           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  hintId          String?         @map("hint_id") @db.Uuid
+  hint            Hint?           @relation(fields: [hintId], references: [id], onDelete: Cascade)
+  submissionId    String?         @map("submission_id") @db.Uuid
+  submission      CaseSubmission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  storageKey      String          @unique @map("storage_key") // INTERNAL – Pfad im Storage
+  mimeType        String          @map("mime_type")
+  sizeBytes       Int             @map("size_bytes")
+  width           Int?
+  height          Int?
+  sha256          String
+  hasThumbnail    Boolean         @default(false) @map("has_thumbnail")
+  mediaType       MediaType       @default(SEARCH_IMAGE) @map("media_type")
+  title           String?
+  sourceText      String?         @map("source_text") // Bildquelle / Urheber
+  sourceId        String?         @map("source_id") @db.Uuid
+  source          Source?         @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  copyrightStatus CopyrightStatus @default(UNKNOWN) @map("copyright_status")
+  visibility      Visibility      @default(INTERNAL)
+  reviewStatus    ReviewStatus    @default(PENDING) @map("review_status")
+  isPrimary       Boolean         @default(false) @map("is_primary")
+  uploadedById    String?         @map("uploaded_by_id") @db.Uuid
+  uploadedBy      User?           @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedAt      DateTime        @default(now()) @map("uploaded_at")
+
+  @@index([caseId, visibility, reviewStatus])
+  @@index([hintId])
+  @@index([submissionId])
+  @@map("media")
+}
+
+// ─────────────────────────────────── Chronologie ───────────────────────────────────
+
+enum TimelineEventType {
+  MISSING
+  POLICE_REPORT
+  PUBLIC_SEARCH
+  SIGHTING
+  NEW_INFORMATION
+  LOCATION_UPDATE
+  SOURCE_UPDATE
+  STATUS_CHANGE
+  FOUND
+}
+
+model TimelineEvent {
+  id          String            @id @default(uuid()) @db.Uuid
+  caseId      String            @map("case_id") @db.Uuid
+  case        Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  type        TimelineEventType
+  occurredAt  DateTime          @map("occurred_at")
+  description String
+  sourceId    String?           @map("source_id") @db.Uuid
+  source      Source?           @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  locationId  String?           @map("location_id") @db.Uuid
+  location    Location?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  createdById String?           @map("created_by_id") @db.Uuid
+  createdBy   User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  visibility  Visibility        @default(INTERNAL)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@index([caseId, occurredAt])
+  @@map("timeline_events")
+}
+
+// ─────────────────────────────────── Hinweise ───────────────────────────────────
+
+enum HintType {
+  PERSON_SEEN
+  POSSIBLE_LOCATION
+  VEHICLE
+  POSSIBLE_ROUTE
+  PHOTO
+  VIDEO
+  NEW_INFORMATION
+  OTHER
+}
+
+enum HintStatus {
+  NEW
+  UNDER_REVIEW
+  REQUIRES_INFORMATION
+  VERIFIED
+  REJECTED
+  FORWARDED
+  ARCHIVED
+}
+
+/// Moderationsentscheidungen (für Hinweise, Meldungen, Quellen, gemeldete Inhalte)
+enum Decision {
+  CONFIRM // bestätigen
+  DEFER // zurückstellen
+  REQUEST_INFO // Rückfrage
+  REJECT // ablehnen
+  FORWARD // intern weiterleiten
+  ARCHIVE
+  NOTE // nur Notiz, keine Statusänderung
+}
+
+/// Ein Hinweis ist IMMER intern. Es gibt keinen öffentlichen Lesepfad.
+model Hint {
+  id              String      @id @default(uuid()) @db.Uuid
+  referenceCode   String      @unique @map("reference_code") // für Rückfragen an Hinweisgeber
+  caseId          String      @map("case_id") @db.Uuid
+  case            Case        @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  hintType        HintType    @map("hint_type")
+  observedDate    DateTime?   @map("observed_date") @db.Date
+  observedTime    String?     @map("observed_time") // "HH:MM"
+  locationText    String?     @map("location_text")
+  latitude        Float?
+  longitude       Float?
+  description     String
+  isAnonymous     Boolean     @default(true) @map("is_anonymous")
+  contactEnc      String?     @map("contact_enc") // AES-256-GCM verschlüsselte Kontaktdaten
+  status          HintStatus  @default(NEW)
+  lastDecision    Decision?   @map("last_decision")
+  reporterId      String?     @map("reporter_id") @db.Uuid
+  reporter        User?       @relation("HintReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  assigneeId      String?     @map("assignee_id") @db.Uuid
+  assignee        User?       @relation("HintAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  originalPayload Json        @map("original_payload") // unveränderte Originaleingabe (ohne Kontakt)
+  ipHash          String?     @map("ip_hash") // HMAC, nur für Missbrauchserkennung
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  personalDataErasedAt DateTime? @map("personal_data_erased_at")
+
+  attachments Media[]
+
+  @@index([status, createdAt])
+  @@index([caseId])
+  @@map("hints")
+}
+
+// ────────────────────────────── Neue Vermisstenmeldungen ──────────────────────────────
+
+enum SubmissionStatus {
+  SUBMITTED
+  REVIEW
+  SOURCE_VERIFICATION
+  APPROVED
+  PUBLISHED
+  REJECTED
+}
+
+model CaseSubmission {
+  id              String           @id @default(uuid()) @db.Uuid
+  referenceCode   String           @unique @map("reference_code")
+  status          SubmissionStatus @default(SUBMITTED)
+  lastDecision    Decision?        @map("last_decision")
+  // Originaleingabe (validiert, ohne Kontaktdaten) – wird nie verändert
+  originalPayload Json             @map("original_payload")
+  personName      String           @map("person_name")
+  age             Int?
+  gender          Gender           @default(UNKNOWN)
+  missingSince    DateTime         @map("missing_since")
+  missingPlace    String           @map("missing_place")
+  description     String?
+  circumstances   String?
+  sourceText      String           @map("source_text") // angegebene Quelle (z. B. Link zur Polizeimeldung)
+  sourceUrl       String?          @map("source_url")
+  contactEnc      String?          @map("contact_enc") // verschlüsselt
+  reporterId      String?          @map("reporter_id") @db.Uuid
+  reporter        User?            @relation("SubmissionReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  assigneeId      String?          @map("assignee_id") @db.Uuid
+  assignee        User?            @relation("SubmissionAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  caseId          String?          @unique @map("case_id") @db.Uuid
+  case            Case?            @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  ipHash          String?          @map("ip_hash")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  personalDataErasedAt DateTime?   @map("personal_data_erased_at")
+
+  attachments Media[]
+
+  @@index([status, createdAt])
+  @@map("case_submissions")
+}
+
+// ─────────────────────────────── Gemeldete Inhalte ───────────────────────────────
+
+enum ReportReason {
+  INCORRECT_INFORMATION
+  PRIVACY_CONCERN
+  PERSON_FOUND
+  COPYRIGHT
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  DISMISSED
+}
+
+model ContentReport {
+  id           String       @id @default(uuid()) @db.Uuid
+  caseId       String       @map("case_id") @db.Uuid
+  case         Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  reason       ReportReason
+  message      String
+  contactEnc   String?      @map("contact_enc")
+  status       ReportStatus @default(OPEN)
+  lastDecision Decision?    @map("last_decision")
+  ipHash       String?      @map("ip_hash")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@map("content_reports")
+}
+
+// ──────────────────────────── Moderationsverlauf & Audit ────────────────────────────
+
+enum ReviewEntity {
+  HINT
+  SUBMISSION
+  SOURCE
+  REPORT
+  MEDIA
+  CASE
+}
+
+/// Bearbeitungsverlauf einer Moderationseinheit (für Moderatoren sichtbar).
+model ReviewEvent {
+  id         String       @id @default(uuid()) @db.Uuid
+  entityType ReviewEntity @map("entity_type")
+  entityId   String       @map("entity_id") @db.Uuid
+  actorId    String?      @map("actor_id") @db.Uuid
+  actor      User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  decision   Decision
+  fromStatus String?      @map("from_status")
+  toStatus   String?      @map("to_status")
+  note       String?      // INTERNAL
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  @@index([entityType, entityId, createdAt])
+  @@map("review_events")
+}
+
+/// Revisionssicheres Protokoll aller administrativen Änderungen (append-only).
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorLabel String   @map("actor_label") // "Moderator Florian" – bleibt erhalten, auch wenn User gelöscht
+  action     String   // z. B. case.status_change
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  summary    String
+  oldData    Json?    @map("old_data")
+  newData    Json?    @map("new_data")
+  ipHash     String?  @map("ip_hash")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────── Rate Limiting ───────────────────────────────────
+
+model RateLimitBucket {
+  key         String   @id // "<bucket>:<hmac(ip)>"
+  windowStart DateTime @map("window_start")
+  count       Int
+
+  @@index([windowStart])
+  @@map("rate_limit_buckets")
+}
+
+// ─────────────────────────────── Zähler für Fallnummern ───────────────────────────────
+
+model Counter {
+  name  String @id
+  value Int    @default(0)
+
+  @@map("counters")
+}
