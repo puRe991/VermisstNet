@@ -1,0 +1,7 @@
+# Einheitliche LF-Zeilenenden auch unter Windows (core.autocrlf).
+# Wichtig: Prisma prüft Checksummen der Migrationsdateien – CRLF würde "migration was modified" auslösen.
+* text=auto eol=lf
+*.sql text eol=lf
+*.png binary
+*.jpg binary
+*.webp binary

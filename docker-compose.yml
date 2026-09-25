@@ -1,0 +1,27 @@
+# Lokale Entwicklung / einfacher Selbstbetrieb. Für Produktion Secrets NICHT im Klartext hier ablegen.
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: vermisst
+      POSTGRES_PASSWORD: vermisst
+      POSTGRES_DB: vermisstatlas
+    ports: ["5432:5432"]
+    volumes: [dbdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vermisst"]
+      interval: 5s
+      retries: 10
+  app:
+    build: .
+    profiles: ["app"]
+    depends_on:
+      db: { condition: service_healthy }
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://vermisst:vermisst@db:5432/vermisstatlas?schema=public
+    ports: ["3000:3000"]
+    volumes: [uploads:/data/storage]
+volumes:
+  dbdata:
+  uploads:
