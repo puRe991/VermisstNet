@@ -14,8 +14,8 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     <>
       <PageHeader title="Audit-Log" lead="Unveränderliches Protokoll aller administrativen Änderungen." />
       <form className="mb-4 flex flex-wrap gap-2 text-sm" method="get">
-        <input name="entityType" placeholder="Objekttyp (z. B. Case)" defaultValue={q.entityType ?? ""} className="input max-w-48" />
-        <input name="entityId" placeholder="Objekt-ID" defaultValue={q.entityId ?? ""} className="input max-w-80" />
+        <input name="entityType" placeholder="Objekttyp (z. B. Case)" defaultValue={q.entityType ?? ""} className="input max-w-xs" />
+        <input name="entityId" placeholder="Objekt-ID" defaultValue={q.entityId ?? ""} className="input max-w-sm" />
         <button className="rounded-lg border border-line px-4">Filtern</button>
       </form>
       {r.items.length ? (

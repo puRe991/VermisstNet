@@ -39,24 +39,24 @@ export async function SiteHeader() {
       </a>
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
         <Logo />
-        <nav aria-label="Hauptnavigation" className="hidden lg:block">
+        <nav aria-label="Hauptnavigation" className="hidden xl:block">
           <ul className="flex items-center gap-1 text-sm">
             {NAV.map((n) => (
               <li key={n.href}>
-                <Link href={n.href} className="rounded-md px-3 py-2 text-ink no-underline hover:bg-canvas">
+                <Link href={n.href} className="whitespace-nowrap rounded-md px-3 py-2 text-ink no-underline hover:bg-canvas">
                   {n.label}
                 </Link>
               </li>
             ))}
             <li>
-              <Link href={accountLink.href} className="ml-2 rounded-md border border-line px-3 py-2 text-brand no-underline hover:bg-brand-soft">
+              <Link href={accountLink.href} className="ml-2 whitespace-nowrap rounded-md border border-line px-3 py-2 text-brand no-underline hover:bg-brand-soft">
                 {accountLink.label}
               </Link>
             </li>
           </ul>
         </nav>
         {/* Mobile Navigation ohne JavaScript (details/summary) */}
-        <details className="relative lg:hidden">
+        <details className="relative xl:hidden">
           <summary className="flex min-h-[44px] cursor-pointer list-none items-center rounded-md border border-line px-3 text-sm font-semibold">
             Menü
           </summary>

@@ -4,10 +4,75 @@
 
 | Komponente | Version |
 |---|---|
-| Node.js | ≥ 20.18 (empfohlen 22 LTS) |
+| Node.js | ≥ 20.18 (empfohlen 22 LTS, 64 Bit) |
 | PostgreSQL | ≥ 15 mit **PostGIS ≥ 3** |
 | Persistenter Speicher | für `STORAGE_DIR` (Uploads), bis zur Umstellung auf S3-Treiber |
 | Reverse Proxy | TLS-Terminierung (Caddy, nginx, Traefik, Plattform-Proxy) |
+
+## 1a. Kompatibilität (Windows, 32 Bit, ältere Browser)
+
+VermisstAtlas ist eine Web-Anwendung. Man muss zwei Seiten unterscheiden:
+
+### Besucher & Moderationsteam (Browser)
+
+| System | Browser | Status |
+|---|---|---|
+| Windows 7 / 8 / 8.1 (32 und 64 Bit) | Chrome / Edge 109 (letzte Version für diese Systeme) | ✅ **getestet** (Chromium 109.0.5414) |
+| Windows 7 / 8 / 8.1 (32 und 64 Bit) | Firefox ESR 115 | ✅ **getestet** (Firefox 115.0) |
+| Windows 10 / 11 (32 und 64 Bit) | aktuelles Chrome, Edge, Firefox | ✅ getestet (aktuelles Chromium) |
+| beliebig | Chrome/Edge ≥ 88, Firefox ≥ 78, Safari ≥ 14 | ✅ unterstützt (Mindeststand) |
+| Windows XP / Vista | Internet Explorer, Chrome ≤ 49, Firefox ≤ 52 | ❌ nicht unterstützt (siehe unten) |
+| beliebig | Internet Explorer 11 | ❌ nicht unterstützt |
+
+Getestet wurden: alle öffentlichen Seiten, Suche/Filter, Fallseite mit Karte, Kartenseite mit
+Clustering und Popups, Hinweisformular (inkl. Absenden), Anmeldung, Moderationsbereich
+(inkl. Formular mit Datum/Uhrzeit). Kein horizontales Scrollen, keine JavaScript-Fehler.
+
+Maßnahmen dafür:
+- **Tailwind CSS v3.4** statt v4 (v4 setzt Chrome ≥ 111 voraus und nutzt `color-mix()`,
+  `oklch()` und `@property`, die Chrome 109 nicht kennt). Das ausgelieferte CSS enthält keine
+  dieser Funktionen.
+- **`browserslist`** in `package.json` (Chrome ≥ 64, Firefox ≥ 67 …) steuert die Transpilierung
+  von JavaScript (geprüft: ES2018-Syntax) und Autoprefixer.
+- Das Session-Cookie ist nur bei `APP_URL=https://…` ein `__Host-`/`Secure`-Cookie. Bei
+  `http://` (lokaler Test) wird ein normales HttpOnly-Cookie verwendet, weil Chrome 109
+  `Secure`-Cookies auf `http://localhost` verwirft.
+- Die Kernseiten (Fallliste, Filter, Fallseiten) werden serverseitig gerendert und
+  funktionieren auch bei deaktiviertem JavaScript.
+- Systemschrift (Segoe UI unter Windows), keine Webfonts; Desktop-Navigation erst ab 1280 px,
+  darunter kompaktes Menü (ältere Bildschirme mit 1024×768).
+
+**Warum kein Windows XP/Vista / IE 11?** Next.js 15 und React 19 benötigen moderne
+JavaScript-Laufzeiten. Diese Systeme erhalten zudem seit Jahren keine Sicherheitsupdates und
+beherrschen teils aktuelle TLS-Verfahren nicht. Die Nutzung einer Plattform mit sensiblen
+Daten (Hinweise, Kontaktdaten) auf solchen Systemen ist nicht vertretbar.
+
+### Server / Hosting
+
+| Plattform | Status |
+|---|---|
+| Linux x64/arm64, Docker | ✅ empfohlen |
+| Windows 10/11 **64 Bit** (Node.js 22 x64, PostgreSQL + PostGIS über Installer oder Docker Desktop) | ✅ möglich (Entwicklung/Test) |
+| Windows **32 Bit** | ❌ **nicht möglich** |
+
+Der Serverbetrieb auf 32-Bit-Windows ist technisch ausgeschlossen, weil zentrale Bausteine
+dafür nicht mehr existieren (Stand geprüft im npm-Register):
+- Next.js liefert seit Version 14.2 keinen Compiler für `win32-ia32` mehr (`@next/swc-win32-ia32-msvc` endet bei 14.2.16).
+- Prisma bietet keine Query-Engine für 32-Bit-Windows.
+- PostgreSQL wird seit Version 11 nicht mehr für 32-Bit-Windows veröffentlicht.
+- Node.js stellt ab Version 23 keine 32-Bit-Windows-Builds mehr bereit.
+
+Das ist unproblematisch: Der Server läuft zentral (Hosting/Rechenzentrum); Besucher und
+Moderationsteam benötigen nur einen Browser – auch auf älteren 32-Bit-Windows-Rechnern (siehe oben).
+
+### Hinweise für Entwicklung unter Windows (64 Bit)
+
+- Node.js 22 LTS (x64) installieren; PostgreSQL 16 + PostGIS über den EDB-Installer
+  (StackBuilder → PostGIS) oder `docker compose up -d db` (Docker Desktop).
+- `.gitattributes` erzwingt LF-Zeilenenden. Sonst würde Git unter Windows die
+  Migrationsdateien mit CRLF auschecken und `prisma migrate deploy` wegen geänderter
+  Prüfsummen abbrechen.
+- Alle npm-Skripte sind plattformunabhängig (keine Shell-Syntax).
 
 ## 2. Lokale Entwicklung
 

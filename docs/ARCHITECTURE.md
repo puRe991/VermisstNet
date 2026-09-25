@@ -116,7 +116,10 @@ zuerst in einem internen Prüfprozess.
    `public/`. Auslieferung ausschließlich über `/api/media/:id/file` mit Berechtigungsprüfung.
 9. **Karten-Generalisierung serverseitig.** Der Client erhält nie genauere Koordinaten als
    erlaubt; Generalisierung ist nicht umgehbar durch Client-Code.
-10. **Mobile first, Tailwind CSS**, ruhige Farbgebung, keine sensationsorientierten Elemente.
+10. **Mobile first, Tailwind CSS v3.4**, ruhige Farbgebung, keine sensationsorientierten Elemente.
+11. **Breite Browser-Kompatibilität:** Tailwind v3 statt v4 und `browserslist`-Ziele, damit auch
+    ältere Windows-Systeme (Windows 7/8.1, 32 Bit) mit Chrome/Edge 109 bzw. Firefox ESR 115
+    vollständig funktionieren (getestet). Details: [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ---
 

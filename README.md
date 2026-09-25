@@ -27,6 +27,13 @@ npm run dev
   gemeldete Inhalte, Fallverwaltung (Person, Status, URGENT, Veröffentlichung, Orte, Quellen,
   Medien, Chronologie), Benutzer & Rollen, Audit-Log, Löschung personenbezogener Daten
 
+## Kompatibilität
+
+Getestet mit **Chrome/Edge 109** und **Firefox ESR 115** – den letzten Versionen für
+Windows 7/8.1 (auch 32 Bit) – sowie aktuellen Browsern. Mindestens Chrome/Edge 88,
+Firefox 78, Safari 14. Der **Server** benötigt ein 64-Bit-System (Linux/Docker empfohlen);
+Details und Begründung: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#1a-kompatibilität-windows-32-bit-ältere-browser).
+
 ## Dokumentation
 
 | Dokument | Inhalt |

@@ -3,18 +3,16 @@ import type { Role } from "@prisma/client";
 import { prisma } from "../db";
 import { env } from "../env";
 import { randomToken, sha256Hex } from "../security/crypto";
+import { sessionCookieIsSecure } from "@/lib/session-cookie";
 
 export type SessionUser = { id: string; email: string; displayName: string; role: Role };
 
-/** In Produktion mit __Host-Präfix: erzwingt Secure, Path=/ und verbietet Domain. */
-export function sessionCookieName(): string {
-  return process.env.NODE_ENV === "production" ? "__Host-va_session" : "va_session";
-}
+export { sessionCookieName } from "@/lib/session-cookie";
 
 export function sessionCookieOptions(expires: Date) {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: sessionCookieIsSecure(),
     sameSite: "lax" as const,
     path: "/",
     expires,

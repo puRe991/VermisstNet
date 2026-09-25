@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isSameOriginRequest } from "@/lib/csrf";
+import { sessionCookieName } from "@/lib/session-cookie";
 
 /**
  * Middleware (Edge Runtime):
@@ -32,8 +33,7 @@ export function middleware(req: NextRequest) {
   }
 
   if (pathname.startsWith("/admin") || pathname.startsWith("/konto")) {
-    const cookieName = isProd ? "__Host-va_session" : "va_session";
-    if (!req.cookies.get(cookieName)) {
+    if (!req.cookies.get(sessionCookieName())) {
       const url = req.nextUrl.clone();
       url.pathname = "/anmelden";
       url.search = `?next=${encodeURIComponent(pathname)}`;
@@ -55,7 +55,7 @@ export function middleware(req: NextRequest) {
     `base-uri 'self'`,
     `form-action 'self'`,
     `frame-ancestors 'none'`,
-    ...(isProd ? ["upgrade-insecure-requests"] : []),
+    ...(isProd && process.env.APP_URL?.startsWith("https:") ? ["upgrade-insecure-requests"] : []),
   ].join("; ");
 
   const requestHeaders = new Headers(req.headers);
