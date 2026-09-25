@@ -37,7 +37,7 @@ describe("Vermisstenmeldung", () => {
     expect(submissionSchema.safeParse({ ...baseSubmission, sourceUrl: "https://polizei.example/" }).success).toBe(true);
   });
   it("speichert HTML als Text (Escaping erfolgt beim Rendern) und entfernt Steuerzeichen", () => {
-    const r = submissionSchema.parse({ ...baseSubmission, description: "<script>alert(1)</script>\u0000‮" });
+    const r = submissionSchema.parse({ ...baseSubmission, description: "<script>alert(1)</script>\u0000\u202E" });
     expect(r.description).toBe("<script>alert(1)</script>");
   });
 });
