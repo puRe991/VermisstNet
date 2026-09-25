@@ -23,7 +23,8 @@ export const optUrl = z
   .nullish()
   .transform((v) => (v == null ? v : v.trim()))
   .transform((v) => (v === "" ? null : v))
-  .refine((v) => v == null || (v.length <= 2000 && isHttpUrl(v)), "Nur http(s)-Links erlaubt");
+  .refine((v) => v == null || (v.length <= 2000 && isHttpUrl(v)), "Nur http(s)-Links erlaubt")
+  .optional();
 
 /** Leere Formularwerte → undefined; sonst Zahl */
 const emptyToUndef = (v: unknown) => (v === "" || v === null ? undefined : v);

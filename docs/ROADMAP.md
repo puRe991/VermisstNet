@@ -8,23 +8,23 @@ Anforderungen, Risiken, Architektur, Datenmodell, Seitenstruktur, API, Rollen, S
 
 | # | Schritt | Status |
 |---|---|---|
-| 1 | Repository-Analyse | ✅ (leeres Repository) |
+| 1 | Repository-Analyse | ✅ (leeres Repository, Neuaufbau) |
 | 2 | Architektur dokumentiert | ✅ |
 | 3 | Datenbankmodell (Prisma + PostGIS) | ✅ |
 | 4 | Migrationen (inkl. GENERATED `geom`, Suchfunktion, Audit-Trigger) | ✅ |
-| 5 | Authentifizierung (Argon2id, DB-Sessions, Rollen) | ⏳ |
-| 6 | Backend/API (Service-Layer, Zod, DTOs) | ⏳ |
-| 7 | Adminbereich / Moderationsdashboard | ⏳ |
-| 8 | Fallverwaltung (Anlegen, Bearbeiten, Status, Veröffentlichung) | ⏳ |
-| 9 | Öffentliche Fallseiten | ⏳ |
-| 10 | Karte (Leaflet/OSM, Clustering, Filter, Generalisierung) | ⏳ |
-| 11 | Hinweis-System | ⏳ |
-| 12 | Quellenverwaltung | ⏳ |
-| 13 | Medienverwaltung (Upload, Re-Encoding, Freigabe) | ⏳ |
-| 14 | Suche & Filter (tsvector) | ⏳ |
-| 15 | Sicherheitsprüfungen | ⏳ |
-| 16 | Tests (Unit + Integration gegen PostgreSQL) | ⏳ |
-| 17 | Deployment-Dokumentation | ⏳ |
+| 5 | Authentifizierung (Argon2id, DB-Sessions, Rollen) | ✅ |
+| 6 | Backend/API (Service-Layer, Zod, DTOs) | ✅ |
+| 7 | Adminbereich / Moderationsdashboard | ✅ |
+| 8 | Fallverwaltung (Anlegen, Bearbeiten, Status, Veröffentlichung) | ✅ |
+| 9 | Öffentliche Fallseiten | ✅ |
+| 10 | Karte (Leaflet/OSM, Clustering, Filter, Generalisierung) | ✅ |
+| 11 | Hinweis-System | ✅ |
+| 12 | Quellenverwaltung | ✅ |
+| 13 | Medienverwaltung (Upload, Re-Encoding, Freigabe) | ✅ |
+| 14 | Suche & Filter (tsvector) | ✅ |
+| 15 | Sicherheitsprüfungen | ✅ |
+| 16 | Tests (Unit + Integration gegen PostgreSQL) | ✅ |
+| 17 | Deployment-Dokumentation | ✅ |
 
 ## Nächste Ausbaustufen
 

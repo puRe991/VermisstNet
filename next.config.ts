@@ -13,6 +13,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  output: "standalone",
   reactStrictMode: true,
   // Native Module bleiben außerhalb des Server-Bundles
   serverExternalPackages: ["@node-rs/argon2", "sharp"],

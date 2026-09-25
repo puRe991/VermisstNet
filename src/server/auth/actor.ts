@@ -33,16 +33,22 @@ export function actorLabel(actor: Actor): string {
   return `${roleLabel[actor.user.role]} ${actor.user.displayName}`;
 }
 
-/** Client-IP: nur hinter vertrauenswürdigem Proxy aus Headern lesen (sonst fälschbar). */
+/**
+ * Client-IP für Rate Limiting / Missbrauchserkennung (wird nur als HMAC gespeichert).
+ * - TRUST_PROXY=true: `X-Real-IP` bzw. der vom vertrauenswürdigen Proxy rechts angehängte XFF-Eintrag.
+ * - sonst: Next.js setzt `X-Forwarded-For` aus der Socket-Adresse, sofern der Client keinen eigenen
+ *   Header mitsendet. Ein gefälschter Header verschiebt nur den eigenen Rate-Limit-Bucket (kein
+ *   Aussperren anderer Nutzer); Login ist zusätzlich pro Konto begrenzt. Produktion: hinter Proxy betreiben.
+ */
 export function clientIpFromHeaders(h: Headers): string | null {
-  if (!env().TRUST_PROXY) return null;
-  const real = h.get("x-real-ip");
-  if (real) return real.trim();
+  if (env().TRUST_PROXY) {
+    const real = h.get("x-real-ip");
+    if (real) return real.trim();
+  }
   const xff = h.get("x-forwarded-for");
   if (!xff) return null;
-  // Der vertrauenswürdige Proxy hängt die Client-IP rechts an.
   const parts = xff.split(",").map((p) => p.trim()).filter(Boolean);
-  return parts[parts.length - 1] ?? null;
+  return parts[parts.length - 1]?.slice(0, 64) ?? null;
 }
 
 function readCookie(h: Headers, name: string): string | null {

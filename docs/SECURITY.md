@@ -87,8 +87,10 @@ Kartengeneralisierung, Default-Sichtbarkeit „Vorname + Initial“).
 ### 2.8 Rate Limiting & Missbrauch
 - PostgreSQL-gestütztes Fixed-Window-Limit je Endpunkt und IP-HMAC.
 - Honeypot-Feld in öffentlichen Formularen.
-- `TRUST_PROXY=true` nur hinter vertrauenswürdigem Reverse Proxy (sonst wäre
-  `X-Forwarded-For` fälschbar).
+- Client-IP: mit `TRUST_PROXY=true` aus `X-Real-IP` bzw. dem vom Proxy rechts angehängten
+  `X-Forwarded-For`-Eintrag. Ohne Proxy setzt Next.js `X-Forwarded-For` aus der Socket-Adresse;
+  ein vom Client gefälschter Header verschiebt nur dessen eigenen Bucket (kein Aussperren
+  Dritter). Login ist zusätzlich pro Konto begrenzt. Produktion: hinter Proxy betreiben.
 
 ### 2.9 Datenminimierung & Verschlüsselung
 - Keine Adressfelder; Ortsangaben auf Ortsebene; DB-Constraint `precision_m >= 100`.
@@ -132,6 +134,8 @@ nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: 
 | XSS-Payloads werden gespeichert, aber nie als HTML interpretiert; `javascript:`-URLs abgelehnt | `tests/unit/validation.test.ts` |
 | SQL-Injection über Suchparameter | `tests/unit/search.test.ts`, `tests/integration/public-leak.test.ts` |
 | Rate Limiting | `tests/integration/rate-limit.test.ts` |
+| Storage: Path Traversal, Thumbnail-Schlüssel | `tests/unit/storage.test.ts` |
+| Auth-Prüfung vor Body-Parsing (große Uploads) | `tests/integration/api-authz.test.ts` |
 | CSRF-Origin-Prüfung | `tests/unit/csrf.test.ts` |
 | Veröffentlichungsregeln (Quelle, Minderjährige, URGENT) | `tests/integration/workflow.test.ts` |
 
