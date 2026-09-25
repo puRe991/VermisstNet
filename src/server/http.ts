@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z, ZodError } from "zod";
 import { formEntriesToObject } from "@/lib/validation/public";
-import { getActorFromRequest, type Actor } from "./auth/actor";
+import { getActorFromRequest, requireStaff, type Actor } from "./auth/actor";
 import { AppError } from "./errors";
 
 type RouteContext<P> = { params: Promise<P> };
@@ -18,6 +18,9 @@ export function apiHandler<P = Record<string, never>>(handler: Handler<P>) {
   return async (req: NextRequest, ctx: RouteContext<P>): Promise<Response> => {
     try {
       const actor = await getActorFromRequest(req);
+      // Basisschutz: interne Endpunkte prüfen die Anmeldung, BEVOR der Body gelesen/validiert wird.
+      // Die feingranulare Prüfung erfolgt zusätzlich im Service-Layer.
+      if (req.nextUrl.pathname.startsWith("/api/admin/")) requireStaff(actor, "admin.access");
       const params = (await ctx?.params) ?? ({} as P);
       return await handler({ req, actor, params });
     } catch (err) {

@@ -13,6 +13,7 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.ts"],
     setupFiles: ["tests/helpers/setup-env.ts"],
+    globalSetup: ["tests/helpers/global-setup.ts"],
     // Integrationstests teilen sich eine Datenbank → sequenziell
     fileParallelism: false,
     testTimeout: 30000,
