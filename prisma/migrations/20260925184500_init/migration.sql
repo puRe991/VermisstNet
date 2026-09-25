@@ -535,9 +535,9 @@ CREATE INDEX "cases_search_vector_gin" ON "cases" USING GIN ("search_vector");
 CREATE OR REPLACE FUNCTION refresh_case_search(p_case_id uuid) RETURNS void
 LANGUAGE sql AS $$
   UPDATE "cases" c SET "search_vector" = CASE
-    WHEN c."publication_status" <> 'PUBLISHED' THEN NULL
+    WHEN c."publication_status" <> 'PUBLISHED' OR c."status" = 'ARCHIVED' THEN NULL
     ELSE
-      setweight(to_tsvector('simple', coalesce(c."public_number", '')), 'A') ||
+      setweight(to_tsvector('simple', replace(coalesce(c."public_number", ''), '-', ' ')), 'A') ||
       setweight(to_tsvector('simple', coalesce((
         SELECT CASE p."privacy_level"
           WHEN 'FULL_NAME' THEN p."first_name" || ' ' || coalesce(p."last_name", '')
